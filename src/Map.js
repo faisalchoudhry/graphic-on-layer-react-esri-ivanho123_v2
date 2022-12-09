@@ -1,24 +1,14 @@
-import React, {useEffect, useRef, useState, lazy, Suspense} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {loadModules} from "esri-loader";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import CardActions from "@mui/material/CardActions";
 import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import {countries} from "./countries";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
 import Divider from "@mui/material/Divider";
-import Slider from "@mui/material/Slider";
 import SliderGebieden from "./components/SliderGebieden";
-import SliderMarktwaarde from "./components/SliderMarktwaarde";
 import SwitchLocatie from "./components/SwitchLocatie";
 import GebiedenSelectList from "./components/GebiedenSelectList";
-
-const UpdatePlaces = lazy(() => import("./UpdatePlaces"));
-
+import DashbaordArea from "./components/DashboardArea";
+import UpdatePlaces from "./UpdatePlaces";
 
 const Maps = () => {
     let view, beginScale;
@@ -27,20 +17,29 @@ const Maps = () => {
     const [country, setCountry] = useState([]);
     const [busLines, setBusLines] = useState([]);
     const [busStations, setBusStations] = useState([]);
+    const [tijd_prijs_2_state, setTijd_prijs_2_state] = useState([]);
+    const busStationsState = useRef([]);
+    const tijd_prijs_1_ref = useRef(0);
+    const tijd_prijs_2_ref = useRef(0);
+    const tijd_prijs_1_status_ref = useRef(false);
+    const mapRef = useRef([]);
+    const gebiedRef = useRef('%');
+    const placesLyrRef = useRef([]);
+    const busStationsLyrRef = useRef([]);
     const API_KEY = '5c953897c0c2990b47baa6742b6140b4';
     const API_KEY_LINES = 'test123';
-    // const [value, setValue] = React.useState(1);
+
     useEffect(
         () => {
             loadModules(["esri/views/MapView", "esri/Map", "esri/layers/FeatureLayer", "esri/Graphic", "esri/geometry/SpatialReference",
-                "esri/widgets/Legend", "esri/core/watchUtils", "esri/geometry/Polyline"], {
+                "esri/widgets/Legend", "esri/core/watchUtils", "esri/layers/support/FeatureFilter"], {
                 css: true
-            }).then(([MapView, Map, FeatureLayer, Graphic, SpatialReference, Legend, watchUtils, Polyline]) => {
+            }).then(([MapView, Map, FeatureLayer, Graphic, SpatialReference, Legend, watchUtils, FeatureFilter]) => {
                 //Map will be created here
                 const map = new Map({
                     basemap: 'topo-vector',
                 });
-
+                mapRef.current = map;
                 try {
                     if (country.result.data.places.length > 0) {
                         view = new MapView({
@@ -84,6 +83,15 @@ const Maps = () => {
                         // spatial reference of base map and dataset is in wkid 28992
                         const dataSR = new SpatialReference({wkid: 28992});
 
+                        if (tijd_prijs_1_status_ref.current) {
+                            responseData.result.data.places.map((item, i) => {
+                                tijd_prijs_1_ref.current = parseInt(tijd_prijs_1_ref.current) + parseInt(item.attributes.TIJD_PRIJS_1);
+                                tijd_prijs_2_ref.current = parseInt(tijd_prijs_2_ref.current) + parseInt(item.attributes.TIJD_PRIJS_2);
+                            });
+                            tijd_prijs_1_status_ref.current = false;
+                            tijd_prijs_1_ref.current = tijd_prijs_1_ref.current.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+                            tijd_prijs_2_ref.current = tijd_prijs_2_ref.current.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+                        }
                         // Places Graphics
                         const placesGraphics = responseData.result.data.places.map((item, i) => new Graphic({
                             geometry: {
@@ -94,11 +102,11 @@ const Maps = () => {
                             attributes: {
                                 ObjectID: i,
                                 naam: item.attributes.naam,
+                                gebied: item.attributes.gebied,
                                 TIJD_PRIJS_1: parseInt(item.attributes.TIJD_PRIJS_1),
                                 TIJD_PRIJS_11: item.attributes.TIJD_PRIJS_1.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."),
                                 Oppervlakte: item.attributes.Area
                             }
-
                         }));
 
                         const placesLyr = new FeatureLayer({
@@ -109,6 +117,9 @@ const Maps = () => {
                                 type: "oid"
                             }, {
                                 name: "naam",
+                                type: "string"
+                            }, {
+                                name: "gebied",
                                 type: "string"
                             }, {
                                 name: "TIJD_PRIJS_1",
@@ -143,6 +154,9 @@ const Maps = () => {
                                 // },
                                 visualVariables: [
                                     {
+                                        legendOptions: {
+                                            title: "Effect Scenario"
+                                        },
                                         type: "color",
                                         field: "TIJD_PRIJS_1",
                                         stops: [
@@ -158,7 +172,9 @@ const Maps = () => {
                             }
                         });
 
-                        // Bus Station Graphics
+                        placesLyrRef.current = placesLyr;
+                        gebiedRef.current = view;
+                       // Bus Station Graphics
                         const busStationGraphics = responseDataBusStations.result.data.stations.map((item, i) => new Graphic({
                             geometry: {
                                 spatialReference: dataSR,
@@ -167,6 +183,7 @@ const Maps = () => {
                             },
                             attributes: {
                                 ObjectID: i,
+                                stationID: item.attributes.stationID,
                                 stationsnaam: item.attributes.stationsnaam,
                                 gebied: item.attributes.gebied,
                                 status: item.attributes.status,
@@ -185,6 +202,9 @@ const Maps = () => {
                             fields: [{
                                 name: "OBJECTID",
                                 type: "oid"
+                            }, {
+                                name: "stationID",
+                                type: "integer"
                             }, {
                                 name: "stationsnaam",
                                 type: "string"
@@ -234,8 +254,10 @@ const Maps = () => {
                             }
                         });
 
+                        busStationsLyrRef.current = busStationLyr;
+
                         // Bus Lines Graphics
-                        const busLinesGraphics = busLines.result.paths.map((item, i) => new Graphic({
+                        const busLinesGraphics = responseDataBusLines.result.paths.map((item, i) => new Graphic({
                             "geometry": {
                                 type: "polyline",
                                 "paths": busLines.result.paths,
@@ -265,11 +287,26 @@ const Maps = () => {
                             layerInfos: [{title: "Places", layer: placesLyr}] /*,{title: "Bus Line", layer: BusLineLyr}*/
                         }, "legend");
 
+
                         map.add(placesLyr);
                         map.add(BusLineLyr);
                         map.add(busStationLyr);
 
+
+                        // setBusStationsState(busStationLyr);
+                        // busStationLyr.visible = false;
+
                         view.ui.add(legend, "bottom-left");
+
+                        if (busStationLyr) {
+                            view.whenLayerView(busStationLyr).then(function (layerView) {
+                                // now we have access to the layerView, an
+                                // object representing the layer in the view
+                                busStationLyr.definitionExpression = "stationID = 15";
+                            });
+                            busStationsState.current = busStationLyr;
+                        }
+
 
                     } else {
                         // console.log("no country");
@@ -279,41 +316,34 @@ const Maps = () => {
                 }
             });
 
-        },);
+        }, [country, busLines, busStations]);
 
-
-    // const sliderHandleChange = (event: Event, newValue: number | number[]) => {
-    //     if (typeof newValue === 'number') {
-    //         setValue(newValue);
-    //     }
-    // };
-    //
-    // function calculateValue(value: number) {
-    //     return 1 + value;
-    // }
 
     useEffect(
         () => {
             fetchApiOnLoad();
         }, []);
     const fetchApiOnLoad = async () => {
-        const data = await fetch("https://backendmodule-2.herokuapp.com/api/v1/places?api_key=" + API_KEY + "").then(res => res.json()).then(result => setCountry({
+        await fetch("https://backendmodule-2.herokuapp.com/api/v1/places?api_key=" + API_KEY + "").then(res => res.json())
+            .then(result => setCountry({
+                    result
+                }),
+                tijd_prijs_1_status_ref.current = true).catch(console.log);
+        await fetch("https://71e21474-148c-4a84-9458-b953d27ba00b.mock.pstmn.io/api/v1/lines?API_KEY=" + API_KEY_LINES + "").then(res => res.json()).then(result => setBusLines({
             result
         })).catch(console.log);
-        const data2 = await fetch("https://71e21474-148c-4a84-9458-b953d27ba00b.mock.pstmn.io/api/v1/lines?API_KEY=" + API_KEY_LINES + "").then(res => res.json()).then(result => setBusLines({
-            result
-        })).catch(console.log);
-        const data3 = await fetch("https://backendmodule-2.herokuapp.com/api/v1/stations?api_key=" + API_KEY + "").then(res => res.json()).then(result => setBusStations({
+        await fetch("https://backendmodule-2.herokuapp.com/api/v1/stations?api_key=" + API_KEY + "").then(res => res.json()).then(result => setBusStations({
             result
         })).catch(console.log);
     }
 
     return (
         <>
+            {/*Side Bar*/}
             <div
                 style={{
                     position: "absolute",
-                    top: "10%",
+                    top: "9%",
                     // padding: 10,
                     right: 10,
                     // backgroundColor: "#F2F2F2",
@@ -329,50 +359,29 @@ const Maps = () => {
                                 Parameters
                             </Typography>
                             <Divider sx={{mt: 2}} color="orange" style={{width: "50px", height: "1px"}}></Divider>
-                            <GebiedenSelectList country={country}></GebiedenSelectList>
-                            <SwitchLocatie></SwitchLocatie>
+                            {/*Select Menu*/}
+                            <GebiedenSelectList gebiedRef={gebiedRef} placesLyrRef={placesLyrRef}
+                                                country={country}></GebiedenSelectList>
+                            {/*Switch Button*/}
+                            <SwitchLocatie gebiedRef={gebiedRef} busStationsLyrRef={busStationsLyrRef}
+                                           busStationsState={busStationsState}></SwitchLocatie>
                             <Divider sx={{mt: 5}} color="orange" style={{width: "50px", height: "1px"}}></Divider>
-                            <SliderGebieden></SliderGebieden>
-                            {/*<Divider sx={{mt: 5}} color="orange" style={{width: "50px", height: "1px"}}></Divider>*/}
-                            {/*<SliderMarktwaarde></SliderMarktwaarde>*/}
-                            <Suspense fallback={<div style={{bottom: 0, position: "absolute"}}>Please wait...</div>}>
-                                <UpdatePlaces country={setCountry}></UpdatePlaces>
-                            </Suspense>
+                            {/*Slider*/}
+                            <SliderGebieden setTijd_prijs_2_state={setTijd_prijs_2_state}
+                                            tijd_prijs_1_ref={tijd_prijs_1_ref}
+                                            tijd_prijs_2_ref={tijd_prijs_2_ref}></SliderGebieden>
+                            {/*Update Data*/}
+                            <UpdatePlaces country={setCountry}></UpdatePlaces>
                         </CardContent>
                     </Card>
                 </div>
+                {/*Output Dashboard*/}
+                <DashbaordArea setTijd_prijs_2_state={setTijd_prijs_2_state} tijd_prijs_1_ref={tijd_prijs_1_ref}
+                               tijd_prijs_2_ref={tijd_prijs_2_ref}></DashbaordArea>
             </div>
-            {/*Output Dashboard*/}
-            <div
-                style={{
-                    position: "absolute",
-                    bottom: "2%",
-                    // padding: 10,
-                    right: 10,
-                    // backgroundColor: "#F2F2F2",
-                    borderRadius: 5,
-                    zIndex: 1000,
-                }}
-            >
-                {/* <input value={"text"} type={"text"} /> */}
-                <div style={{marginBottom: 7}}>
-                    <Card sx={{minWidth: 300, backgroundColor: "#cee4ff", minHeight: 20}}>
-                        <CardContent sx={{paddingLeft: 5, paddingRight: 5}}>
-                            <Typography sx={{fontSize: 18, fontWeight: "bold"}} color="" gutterBottom style={{left: 0}}>
-                                Output Dashboard
-                            </Typography>
-                            <Divider sx={{mt: 2}} color="orange" style={{width: "50px", height: "1px"}}></Divider>
-                            <Typography sx={{mt: 1, mb: 1.5}}>
-                                Basis
-                            </Typography>
-                            <Typography>
-                                Scenario
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
-            <div style={{height: 600}} ref={MapElement}>
+
+            {/*Map*/}
+            <div style={{height: "92vh"}} ref={MapElement}>
             </div>
 
         </>

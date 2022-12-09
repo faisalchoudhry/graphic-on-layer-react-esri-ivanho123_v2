@@ -33,6 +33,12 @@ const GebiedenSelectList = (props) => {
     // }
     const handleChange = (event: SelectChangeEvent) => {
         setGebieden(event.target.value);
+        // props.gebiedRef.current = event.target.value;
+        props.gebiedRef.current.whenLayerView(props.placesLyrRef.current).then(function(layerView){
+            // now we have access to the layerView, an
+            // object representing the layer in the view
+            props.placesLyrRef.current.definitionExpression = "gebied = '"+event.target.value+"'";
+        });
         // console.log(gebieden)
         // console.log(event.target.value)
     };

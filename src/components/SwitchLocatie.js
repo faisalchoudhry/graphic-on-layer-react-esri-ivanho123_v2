@@ -1,12 +1,12 @@
 import * as React from "react";
-import { styled } from "@mui/material/styles";
+import {styled} from "@mui/material/styles";
 import FormGroup from "@mui/material/FormGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import Switch, { SwitchProps } from "@mui/material/Switch";
+import Switch, {SwitchProps} from "@mui/material/Switch";
 
 const IOSSwitch = styled((props: SwitchProps) => (
     <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
-))(({ theme }) => ({
+))(({theme}) => ({
     width: 42,
     height: 26,
     padding: 0,
@@ -55,11 +55,29 @@ const IOSSwitch = styled((props: SwitchProps) => (
     }
 }));
 
-export default function SwitchLocatie() {
+export default function SwitchLocatie(props) {
+    const [checked, setChecked] = React.useState(true);
+
+    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setChecked(event.target.checked);
+        // props.busStationsState.current.visible = event.target.checked;
+        props.gebiedRef.current.whenLayerView(props.busStationsLyrRef.current).then(function (layerView) {
+            // now we have access to the layerView, an
+            // object representing the layer in the view
+            if (event.target.checked) {
+                props.busStationsLyrRef.current.definitionExpression = "stationID > 0";
+            } else {
+                props.busStationsLyrRef.current.definitionExpression = "stationID not in (15)"
+            }
+            // props.busStationsLyrRef.current.definitionExpression = "stationID = "+event.target.value+"";
+        });
+    };
     return (
         <FormGroup sx={{mt: 5}}>
             <FormControlLabel
-                control={<IOSSwitch sx={{ m: 1 }} defaultChecked />}
+                control={<IOSSwitch sx={{m: 1}}
+                                    checked={checked}
+                                    onChange={handleChange}/>}
                 label="Locatie meetellen"
             />
         </FormGroup>
